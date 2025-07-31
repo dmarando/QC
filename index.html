@@ -1,13 +1,25 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+    <title>Quantum Clays</title>
+    <script
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASuiq7EPqMUAQjwdH6KeFPmKb86b9v_c4&libraries=places&callback=initMap"
+      async
+      defer
+    ></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // This is a global callback function required by the Google Maps API.
+      // It's called once the API script is loaded. We will use this in React later.
+      window.initMap = function() {
+        console.log("Google Maps JavaScript API loaded!");
+      };
+    </script>
   </body>
 </html>

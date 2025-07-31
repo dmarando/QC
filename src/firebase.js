@@ -2,6 +2,8 @@
 import { initializeApp } from "firebase/app";
 // Import Firestore functionality
 import { getFirestore } from "firebase/firestore";
+// Import Cloud Storage functionality
+import { getStorage } from "firebase/storage";
 
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -13,7 +15,7 @@ const firebaseConfig = {
   projectId: "qc-01-a10f8",
   storageBucket: "qc-01-a10f8.firebasestorage.app",
   messagingSenderId: "699119764276",
-  appId: "1:699119764276:web:3e2ddd537f1a16581d9b61",
+  appId: "1:699119764276:web:3e2ddd537f1a16581d9b61"
 };
 
 // Initialize Firebase App
@@ -22,4 +24,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firestore Database
 const db = getFirestore(app);
 
-export { app, db }; // Export both app and db
+// Initialize Cloud Storage
+const storage = getStorage(app);
+
+export { app, db, storage };
