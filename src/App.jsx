@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "./firebase"; // Import the initialized Firebase app
-import SignIn from "./SignIn"; // Import our new SignIn component
+import SignIn from "./SignIn"; // Import our SignIn component
+import AppNavigation from "./AppNavigation"; // Import our new AppNavigation component
 
 function App() {
   const [user, setUser] = useState(null); // State to hold user authentication info
@@ -16,7 +17,7 @@ function App() {
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [auth]); // Dependency array includes 'auth' to ensure listener is correctly set up
+  }, [auth]);
 
   // Log Firebase app initialization status (from previous step, good for initial verification)
   useEffect(() => {
@@ -26,15 +27,10 @@ function App() {
   return (
     <div className="App">
       {user ? (
-        // User is signed in
-        <div>
-          <h1>Welcome, {user.displayName}!</h1>
-          <p>You are logged in to Quantum Clays.</p>
-          {/* In future steps, this will be our main Dashboard and navigation */}
-          <button onClick={() => auth.signOut()}>Sign Out</button>
-        </div>
+        // User is signed in, show the navigation
+        <AppNavigation />
       ) : (
-        // User is not signed in
+        // User is not signed in, show the sign-in component
         <SignIn />
       )}
     </div>
