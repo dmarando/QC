@@ -17,14 +17,16 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-// NO LONGER NEEDED: import { GoogleMap, StandaloneSearchBox, LoadScript } from '@react-google-maps/api'; // This line is GONE
+// NOTE: The @react-google-maps/api import is intentionally REMOVED from here.
+// Google Maps API is loaded directly in public/index.html now.
 
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 import { app, storage } from './firebase';
 
-// Google Maps API Key is now in index.html, not needed here
+const Maps_API_KEY = 'AIzaSyASuiq7EPqMUAQjwdH6KeFPmKb86b9v_c4'; // Your Google Maps API Key
 const VISUAL_CROSSING_API_KEY = '9FFM2WGU7BA9ZGSCT2Z36M9TD'; // Your Visual Crossing API Key
+// const libraries = ['places']; // Not explicitly needed here anymore as loaded in index.html
 
 // We'll eventually populate these from Firestore
 const mockGuns = [
@@ -54,6 +56,7 @@ function SessionLogForm() {
     date: new Date().toISOString().split('T')[0],
     time: new Date().toTimeString().split(' ')[0].substring(0, 5),
     location: '',
+    eventName: '', // State for Event Name
     gunUsed: '',
     chokeUsed: '',
     ammunitionUsed: '',
@@ -156,6 +159,7 @@ function SessionLogForm() {
     if (sessionData.registeredEvent) {
       setSessionData(prevData => ({
         ...prevData,
+        eventName: prevData.eventName, // Keep existing eventName if re-checking
         scores: {
           Singles: [{ value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }],
           Handicaps: [{ value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }],
@@ -165,6 +169,7 @@ function SessionLogForm() {
     } else {
       setSessionData(prevData => ({
         ...prevData,
+        eventName: '', // Clear event name if unchecking
         scores: {
           Singles: [{ value: null, didNotShoot: false }],
           Handicaps: [],
@@ -174,6 +179,7 @@ function SessionLogForm() {
     }
   }, [sessionData.registeredEvent]);
 
+  // Use this effect to initialize Google Maps Autocomplete directly
   useEffect(() => {
     if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
       const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
@@ -332,6 +338,20 @@ function SessionLogForm() {
                 inputRef={locationInputRef}
               />
             </Grid>
+
+            {/* Event Name - Conditionally rendered for Registered Event */}
+            {sessionData.registeredEvent && (
+                <Grid item xs={12}>
+                    <TextField
+                        fullWidth
+                        label="Event Name"
+                        name="eventName"
+                        value={sessionData.eventName}
+                        onChange={handleChange}
+                        placeholder="Enter registered event name (e.g., State Championship)"
+                    />
+                </Grid>
+            )}
 
             {/* Gun Used Dropdown */}
             <Grid item xs={12} sm={4} sx={{ minWidth: { xs: 'auto', sm: '180px' } }}>
