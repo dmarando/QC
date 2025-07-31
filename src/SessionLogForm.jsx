@@ -17,7 +17,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-// NO LONGER NEEDED: import { GoogleMap, StandaloneSearchBox, LoadScript } from '@react-google-maps/api';
+// NO LONGER NEEDED: import { GoogleMap, StandaloneSearchBox, LoadScript } from '@react-google-maps/api'; // This line is GONE
 
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
@@ -73,7 +73,7 @@ function SessionLogForm() {
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   
-  const locationInputRef = useRef(null); // Ref for the Location TextField
+  const locationInputRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -174,11 +174,10 @@ function SessionLogForm() {
     }
   }, [sessionData.registeredEvent]);
 
-  // NEW: Effect to initialize Google Maps Autocomplete
   useEffect(() => {
     if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
       const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
-        types: ['establishment', 'geocode'], // Limit to businesses or geocodes
+        types: ['establishment', 'geocode'],
       });
 
       autocomplete.addListener('place_changed', () => {
@@ -192,7 +191,7 @@ function SessionLogForm() {
         }
       });
     }
-  }, [locationInputRef.current]); // Re-run when the ref becomes available
+  }, [locationInputRef.current]);
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -330,12 +329,12 @@ function SessionLogForm() {
                 value={sessionData.location}
                 onChange={handleChange}
                 placeholder="Enter location (e.g., Pine Hill Gun Club)"
-                inputRef={locationInputRef} // Attach ref here
+                inputRef={locationInputRef}
               />
             </Grid>
 
             {/* Gun Used Dropdown */}
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={4} sx={{ minWidth: { xs: 'auto', sm: '180px' } }}>
               <TextField
                 select
                 fullWidth
@@ -350,6 +349,7 @@ function SessionLogForm() {
                   }
                   return selected;
                 }}
+                sx={{ '& .MuiInputLabel-root': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }}
               >
                 <MenuItem value="" disabled>
                   <em>Select a gun</em>
@@ -363,7 +363,7 @@ function SessionLogForm() {
             </Grid>
 
             {/* Choke Used Dropdown */}
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={4} sx={{ minWidth: { xs: 'auto', sm: '180px' } }}>
               <TextField
                 select
                 fullWidth
@@ -378,6 +378,7 @@ function SessionLogForm() {
                   }
                   return selected;
                 }}
+                sx={{ '& .MuiInputLabel-root': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }}
               >
                  <MenuItem value="" disabled>
                   <em>Select a choke</em>
@@ -391,7 +392,7 @@ function SessionLogForm() {
             </Grid>
 
             {/* Ammunition Used Dropdown */}
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={4} sx={{ minWidth: { xs: 'auto', sm: '180px' } }}>
               <TextField
                 select
                 fullWidth
@@ -406,6 +407,7 @@ function SessionLogForm() {
                   }
                   return selected;
                 }}
+                sx={{ '& .MuiInputLabel-root': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }}
               >
                  <MenuItem value="" disabled>
                   <em>Select ammo</em>
