@@ -1,80 +1,73 @@
-import React from 'react';
-import { useParams } from 'react-router-dom'; // To get parameters from the URL
-import { Box, Typography, Paper, Button } from '@mui/material';
-import { Link } from 'react-router-dom'; // For navigation back
+import React, { useState, useEffect } from 'react'; // Added useState and useEffect
+import { useParams, Link } from 'react-router-dom'; // Keep useParams and Link
+import { Box, Typography, Paper, Button, CircularProgress, Alert } from '@mui/material'; // Added CircularProgress and Alert
 
-// Mock session data (same as in SessionHistory, for lookup)
-const mockSessions = [
-  {
-    id: 's1',
-    date: '2025-07-28',
-    time: '14:30',
-    location: 'Pine Hill Gun Club',
-    type: 'Practice',
-    totalScore: '92/100',
-    weather: 'Sunny at 80°F',
-    gun: 'Beretta 692',
-    choke: 'Full',
-    ammo: 'Winchester AA',
-    notes: 'Good practice session, worked on follow-through. Wind was light.',
-    scores: { // More detailed mock scores
-      Singles: [{ value: 23 }, { value: 24 }],
-      Handicaps: [],
-      Doubles: [],
-    }
-  },
-  {
-    id: 's2',
-    date: '2025-07-25',
-    time: '10:00',
-    location: 'Albany Rod & Gun Club',
-    type: 'Registered Event',
-    eventName: 'Summer Classic', // Example Event Name
-    totalScore: '95/100',
-    weather: 'Partly Cloudy at 75°F',
-    gun: 'Perazzi MX8',
-    choke: 'Improved Modified',
-    ammo: 'Federal Top Gun',
-    notes: 'First registered event of the season. Felt good about focus.',
-    scores: {
-      Singles: [{ value: 24 }, { value: 23 }, { value: 25 }, { value: 23 }],
-      Handicaps: [{ value: 22 }, { value: 21 }, { value: 24 }, { value: 23 }],
-      Doubles: [],
-    }
-  },
-  {
-    id: 's3',
-    date: '2025-07-20',
-    time: '16:00',
-    location: 'Capital Area Trap Range',
-    type: 'Practice',
-    totalScore: '88/100',
-    weather: 'Windy at 70°F',
-    gun: 'Browning Citori',
-    choke: 'Light Full',
-    ammo: 'Remington STS',
-    notes: 'Wind was tricky. Need more practice in these conditions.',
-    scores: {
-      Singles: [{ value: 22 }],
-      Handicaps: [{ value: 21 }],
-      Doubles: [{ value: 18 }],
-    }
-  },
-];
+// NEW: Import Firestore and Auth
+import { doc, getDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { app, db } from './firebase'; // Ensure db is imported
+
+// NO LONGER NEEDED: const mockSessions = [...]; // Mock data is removed
 
 function SessionDetail() {
   const { sessionId } = useParams(); // Get the sessionId from the URL
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const auth = getAuth(app); // Get Firebase Auth instance
 
-  // Find the session in mock data (will fetch from Firestore later)
-  const session = mockSessions.find(s => s.id === sessionId);
+  useEffect(() => {
+    const fetchSession = async () => {
+      if (!auth.currentUser) {
+        setError("Please sign in to view session details.");
+        setLoading(false);
+        return;
+      }
+      if (!sessionId) {
+        setError("No session ID provided.");
+        setLoading(false);
+        return;
+      }
 
-  if (!session) {
+      const userId = auth.currentUser.uid;
+      try {
+        const sessionDocRef = doc(db, `users/${userId}/sessions`, sessionId); // Reference to the specific session document
+        const sessionDocSnap = await getDoc(sessionDocRef); // Fetch the document
+
+        if (sessionDocSnap.exists()) {
+          setSession({ id: sessionDocSnap.id, ...sessionDocSnap.data() });
+          console.log("Fetched session details:", sessionDocSnap.data());
+        } else {
+          setError("Session not found in database.");
+          console.warn("No such session document!");
+        }
+      } catch (err) {
+        console.error("Error fetching session details:", err);
+        setError("Failed to load session details. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    setLoading(true); // Start loading when effect runs
+    setError(null);    // Clear previous errors
+    fetchSession();
+  }, [sessionId, auth.currentUser, db]); // Re-run effect if sessionId, user, or db changes
+
+  if (loading) {
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Typography variant="h5" color="error" gutterBottom>
-          Session not found!
-        </Typography>
-        <Button component={Link} to="/history" variant="contained">
+        <CircularProgress />
+        <Typography>Loading session details...</Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Alert severity="error">{error}</Alert>
+        <Button component={Link} to="/history" variant="contained" sx={{ mt: 2 }}>
           Back to Session History
         </Button>
       </Box>
@@ -88,7 +81,7 @@ function SessionDetail() {
       </Typography>
       <Paper sx={{ p: 3, mb: 4 }}>
         <Typography variant="h5" gutterBottom>
-          {session.date} - {session.location} ({session.type})
+          {session.date} - {session.location} ({session.registeredEvent ? 'Registered Event' : 'Practice'})
           {session.eventName && ` - ${session.eventName}`}
         </Typography>
         <Typography variant="body1" sx={{ mb: 1 }}>
@@ -98,20 +91,21 @@ function SessionDetail() {
           <strong>Weather:</strong> {session.weather}
         </Typography>
         <Typography variant="body1" sx={{ mb: 1 }}>
-          <strong>Gun Used:</strong> {session.gun}
+          <strong>Gun Used:</strong> {session.gunUsed || 'N/A'}
         </Typography>
         <Typography variant="body1" sx={{ mb: 1 }}>
-          <strong>Choke Used:</strong> {session.choke}
+          <strong>Choke Used:</strong> {session.chokeUsed || 'N/A'}
         </Typography>
         <Typography variant="body1" sx={{ mb: 1 }}>
-          <strong>Ammunition Used:</strong> {session.ammo}
+          <strong>Ammunition Used:</strong> {session.ammunitionUsed || 'N/A'}
         </Typography>
         
         <Typography variant="h6" sx={{ mt: 2 }} gutterBottom>Scores:</Typography>
         {Object.entries(session.scores).map(([discipline, rounds]) => (
           rounds.length > 0 && (
             <Typography key={discipline} variant="body1">
-              <strong>{discipline}:</strong> {rounds.map(r => r.value !== null ? r.value : 'DNS').join(', ')} (Total: {rounds.reduce((sum, r) => sum + (r.value || 0), 0)})
+              <strong>{discipline}:</strong> {rounds.map(r => r.value !== null ? r.value : (r.didNotShoot ? 'DNS' : 'N/A')).join(', ')}
+              {` (Total: ${rounds.reduce((sum, r) => sum + (r.value || 0), 0)}/${rounds.length * 25})`} {/* Calculated total */}
             </Typography>
           )
         ))}
@@ -123,7 +117,19 @@ function SessionDetail() {
           </Box>
         )}
 
-        {/* Future: Display file attachment link if available */}
+        {session.fileAttachmentURL && (
+            <Box sx={{ mt: 2 }}>
+                <Typography variant="h6" gutterBottom>Attached Score Sheet:</Typography>
+                <Button 
+                    variant="outlined" 
+                    href={session.fileAttachmentURL} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                >
+                    View Attached File
+                </Button>
+            </Box>
+        )}
 
         <Button component={Link} to="/history" variant="contained" sx={{ mt: 3 }}>
           Back to Session History

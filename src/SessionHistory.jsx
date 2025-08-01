@@ -1,69 +1,65 @@
-import React from 'react';
-import { Box, Typography, Paper, List, ListItemText, Divider } from '@mui/material'; // Removed ListItem
-import ListItemButton from '@mui/material/ListItemButton'; // NEW: Import ListItemButton
+import React, { useState, useEffect } from 'react'; // Added useState and useEffect
+import { Box, Typography, Paper, List, ListItemText, Divider, CircularProgress, Alert } from '@mui/material'; // Added CircularProgress and Alert
+import ListItemButton from '@mui/material/ListItemButton';
 import { Link } from 'react-router-dom';
 
-// Mock session data (same as in SessionDetail for now)
-const mockSessions = [
-  {
-    id: 's1',
-    date: '2025-07-28',
-    time: '14:30',
-    location: 'Pine Hill Gun Club',
-    type: 'Practice',
-    totalScore: '92/100',
-    weather: 'Sunny at 80°F',
-    gun: 'Beretta 692',
-    choke: 'Full',
-    ammo: 'Winchester AA',
-    notes: 'Good practice session, worked on follow-through. Wind was light.',
-    scores: {
-      Singles: [{ value: 23 }, { value: 24 }],
-      Handicaps: [],
-      Doubles: [],
-    }
-  },
-  {
-    id: 's2',
-    date: '2025-07-25',
-    time: '10:00',
-    location: 'Albany Rod & Gun Club',
-    type: 'Registered Event',
-    eventName: 'Summer Classic',
-    totalScore: '95/100',
-    weather: 'Partly Cloudy at 75°F',
-    gun: 'Perazzi MX8',
-    choke: 'Improved Modified',
-    ammo: 'Federal Top Gun',
-    notes: 'First registered event of the season. Felt good about focus.',
-    scores: {
-      Singles: [{ value: 24 }, { value: 23 }, { value: 25 }, { value: 23 }],
-      Handicaps: [{ value: 22 }, { value: 21 }, { value: 24 }, { value: 23 }],
-      Doubles: [],
-    }
-  },
-  {
-    id: 's3',
-    date: '2025-07-20',
-    time: '16:00',
-    location: 'Capital Area Trap Range',
-    type: 'Practice',
-    totalScore: '88/100',
-    weather: 'Windy at 70°F',
-    gun: 'Browning Citori',
-    choke: 'Light Full',
-    ammo: 'Remington STS',
-    notes: 'Wind was tricky. Need more practice in these conditions.',
-    scores: {
-      Singles: [{ value: 22 }],
-      Handicaps: [{ value: 21 }],
-      Doubles: [{ value: 18 }],
-    }
-  },
-];
+// NEW: Import Firestore and Auth
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { app, db } from './firebase'; // Ensure db is imported
 
 function SessionHistory() {
-  const sortedSessions = [...mockSessions].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const auth = getAuth(app); // Get Firebase Auth instance
+
+  useEffect(() => {
+    if (!auth.currentUser) {
+      setError("Please sign in to view your session history.");
+      setLoading(false);
+      return;
+    }
+
+    const userId = auth.currentUser.uid;
+    // Create a query to fetch sessions for the current user, ordered by timestamp
+    const sessionsCollectionRef = collection(db, `users/${userId}/sessions`);
+    const q = query(sessionsCollectionRef, orderBy('timestamp', 'desc')); // Most recent first
+
+    // Set up a real-time listener for sessions
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedSessions = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSessions(fetchedSessions);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error fetching sessions:", err);
+      setError("Failed to load session history. Please try again.");
+      setLoading(false);
+    });
+
+    // Clean up the listener when the component unmounts
+    return () => unsubscribe();
+  }, [auth.currentUser, db]); // Re-run effect if user or db instance changes
+
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <CircularProgress />
+        <Typography>Loading sessions...</Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Alert severity="error">{error}</Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -71,16 +67,16 @@ function SessionHistory() {
         Your Session History
       </Typography>
       <Paper sx={{ p: 3 }}>
-        {sortedSessions.length === 0 ? (
+        {sessions.length === 0 ? (
           <Typography variant="body1">No sessions logged yet. Log your first session!</Typography>
         ) : (
           <List>
-            {sortedSessions.map((session, index) => (
+            {sessions.map((session, index) => (
               <React.Fragment key={session.id}>
-                <ListItemButton // Changed from ListItem
+                <ListItemButton
                   component={Link}
                   to={`/session/${session.id}`}
-                  alignItems="flex-start" // This prop might not be needed on ListItemButton, but keeping for now
+                  alignItems="flex-start"
                 >
                   <ListItemText
                     primary={
@@ -93,7 +89,7 @@ function SessionHistory() {
                       <Typography component="span" variant="body2" color="text.secondary">
                         <Box>
                           <Typography component="span" variant="body2" color="text.primary">
-                            Score: {session.totalScore}
+                            Score: {session.totalScore || 'N/A'} {/* Use totalScore from saved data */}
                           </Typography>
                           <br />
                           <Typography component="span" variant="body2" color="text.secondary">
@@ -101,14 +97,14 @@ function SessionHistory() {
                           </Typography>
                           <br />
                           <Typography component="span" variant="body2" color="text.secondary">
-                            Equipment: {session.gun}, {session.choke}, {session.ammo}
+                            Equipment: {session.gunUsed || 'N/A'}, {session.chokeUsed || 'N/A'}, {session.ammunitionUsed || 'N/A'} {/* Use saved equipment names */}
                           </Typography>
                         </Box>
                       </Typography>
                     }
                   />
                 </ListItemButton>
-                {index < sortedSessions.length - 1 && <Divider component="li" />}
+                {index < sessions.length - 1 && <Divider component="li" />}
               </React.Fragment>
             ))}
           </List>
