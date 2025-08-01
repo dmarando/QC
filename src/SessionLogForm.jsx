@@ -22,11 +22,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
-import { app, storage } from './firebase';
+import { app, storage, db } from './firebase'; // NEW: Import db (Firestore)
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; // NEW: Import Firestore functions
 
 const Maps_API_KEY = 'AIzaSyASuiq7EPqMUAQjwdH6KeFPmKb86b9v_c4'; // Your Google Maps API Key
 const VISUAL_CROSSING_API_KEY = '9FFM2WGU7BA9ZGSCT2Z36M9TD'; // Your Visual Crossing API Key
-// const libraries = ['places']; // Not explicitly needed here anymore as loaded in index.html
 
 // We'll eventually populate these from Firestore
 const mockGuns = [
@@ -49,32 +49,35 @@ const mockAmmo = [
 
 const disciplines = ['Singles', 'Handicaps', 'Doubles'];
 
+const initialSessionData = {
+  date: new Date().toISOString().split('T')[0],
+  time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+  location: '',
+  eventName: '',
+  gunUsed: '',
+  chokeUsed: '',
+  ammunitionUsed: '',
+  weather: '',
+  registeredEvent: false,
+  scores: {
+    Singles: [{ value: null, didNotShoot: false }],
+    Handicaps: [],
+    Doubles: [],
+  },
+  notes: '',
+  fileAttachment: null,
+  fileAttachmentURL: '',
+};
+
 function SessionLogForm() {
   const auth = getAuth(app);
 
-  const [sessionData, setSessionData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-    location: '',
-    eventName: '', // State for Event Name
-    gunUsed: '',
-    chokeUsed: '',
-    ammunitionUsed: '',
-    weather: '',
-    registeredEvent: false,
-    scores: {
-      Singles: [{ value: null, didNotShoot: false }],
-      Handicaps: [],
-      Doubles: [],
-    },
-    notes: '',
-    fileAttachment: null,
-    fileAttachmentURL: '',
-  });
+  const [sessionData, setSessionData] = useState(initialSessionData);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [formSubmitMessage, setFormSubmitMessage] = useState(null); // For general form submission success/error
   
   const locationInputRef = useRef(null);
 
@@ -159,7 +162,7 @@ function SessionLogForm() {
     if (sessionData.registeredEvent) {
       setSessionData(prevData => ({
         ...prevData,
-        eventName: prevData.eventName, // Keep existing eventName if re-checking
+        eventName: prevData.eventName,
         scores: {
           Singles: [{ value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }],
           Handicaps: [{ value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }, { value: null, didNotShoot: false }],
@@ -169,7 +172,7 @@ function SessionLogForm() {
     } else {
       setSessionData(prevData => ({
         ...prevData,
-        eventName: '', // Clear event name if unchecking
+        eventName: '',
         scores: {
           Singles: [{ value: null, didNotShoot: false }],
           Handicaps: [],
@@ -179,7 +182,6 @@ function SessionLogForm() {
     }
   }, [sessionData.registeredEvent]);
 
-  // Use this effect to initialize Google Maps Autocomplete directly
   useEffect(() => {
     if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
       const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
@@ -248,50 +250,89 @@ function SessionLogForm() {
     return () => clearTimeout(debounceFetch);
   }, [sessionData.location, sessionData.date, sessionData.time, VISUAL_CROSSING_API_KEY]);
 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUploadError(null);
     setUploadSuccess(false);
+    setFormSubmitMessage(null);
 
+    if (!auth.currentUser) {
+      setFormSubmitMessage({ type: 'error', message: 'Please sign in to log a session.' });
+      return;
+    }
+
+    let finalSessionData = { ...sessionData };
     let uploadedFileUrl = '';
-    if (sessionData.fileAttachment && auth.currentUser) {
+
+    // Step 1: Handle File Upload (if any)
+    if (sessionData.fileAttachment) {
       setUploadProgress(0);
       try {
         const file = sessionData.fileAttachment;
         const storageRef = ref(storage, `users/${auth.currentUser.uid}/scoresheets/${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(progress);
-            console.log('Upload is ' + progress + '% done');
-          },
-          (error) => {
-            console.error("File upload error:", error);
-            setUploadError(`File upload failed: ${error.message}`);
-            setUploadProgress(0);
-          },
-          async () => {
-            uploadedFileUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            setSessionData(prevData => ({ ...prevData, fileAttachmentURL: uploadedFileUrl }));
-            setUploadSuccess(true);
-            console.log("File available at:", uploadedFileUrl);
-          }
-        );
+        await new Promise((resolve, reject) => { // Use a promise to wait for upload completion
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+              console.log('Upload is ' + progress + '% done');
+            },
+            (error) => {
+              console.error("File upload error:", error);
+              setUploadError(`File upload failed: ${error.message}`);
+              setUploadProgress(0);
+              reject(error); // Reject the promise on error
+            },
+            async () => {
+              uploadedFileUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              setSessionData(prevData => ({ ...prevData, fileAttachmentURL: uploadedFileUrl })); // Update state (optional, for UI feedback)
+              setUploadSuccess(true);
+              console.log("File available at:", uploadedFileUrl);
+              resolve(); // Resolve the promise on success
+            }
+          );
+        });
+        finalSessionData.fileAttachmentURL = uploadedFileUrl; // Update URL in data for Firestore
       } catch (error) {
-        console.error("Could not start upload:", error);
-        setUploadError(`Could not start upload: ${error.message}`);
-        setUploadProgress(0);
+        setFormSubmitMessage({ type: 'error', message: `Error uploading file: ${error.message}` });
+        return; // Stop submission if file upload fails
       }
-    } else if (sessionData.fileAttachment && !auth.currentUser) {
-      setUploadError("Please sign in to upload files.");
-    } else {
-      console.log("No file to upload. Session Data Submitted:", sessionData);
     }
 
-    console.log("Final Session Data for Submission:", sessionData);
+    // Step 2: Save Session Data to Firestore [NEW LOGIC]
+    try {
+      // Clean up sessionData before saving: remove transient fileAttachment object
+      const { fileAttachment, ...dataToSave } = finalSessionData;
+
+      // Add user ID and timestamp as per Firestore rules
+      const sessionWithMetadata = {
+        ...dataToSave,
+        userId: auth.currentUser.uid, // Store user ID
+        timestamp: serverTimestamp(), // Firestore server timestamp
+        // Ensure scores are flat or deeply copied if needed, or structured for total score calculation
+        scores: Object.entries(dataToSave.scores).reduce((acc, [discipline, rounds]) => {
+          acc[discipline] = rounds.map(r => ({
+            value: r.value !== null ? r.value : null,
+            didNotShoot: r.didNotShoot
+          }));
+          return acc;
+        }, {}),
+      };
+
+      const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/sessions`), sessionWithMetadata); // Save to user's subcollection
+      console.log("Session saved with ID:", docRef.id);
+      setFormSubmitMessage({ type: 'success', message: 'Session logged successfully!' });
+      setSessionData(initialSessionData); // Reset form after successful submission
+      setUploadProgress(0); // Reset upload progress
+      setUploadSuccess(false); // Reset upload success
+    } catch (error) {
+      console.error("Error saving session to Firestore:", error);
+      setFormSubmitMessage({ type: 'error', message: `Error logging session: ${error.message}` });
+    }
   };
 
   return (
@@ -349,6 +390,7 @@ function SessionLogForm() {
                         value={sessionData.eventName}
                         onChange={handleChange}
                         placeholder="Enter registered event name (e.g., State Championship)"
+                        sx={{ mb: 3 }} // Add margin bottom for spacing
                     />
                 </Grid>
             )}
@@ -628,6 +670,11 @@ function SessionLogForm() {
             </Grid>
           </Grid>
         </form>
+        {formSubmitMessage && (
+          <Alert severity={formSubmitMessage.type} sx={{ mt: 2 }}>
+            {formSubmitMessage.message}
+          </Alert>
+        )}
       </Paper>
     </Box>
   );
