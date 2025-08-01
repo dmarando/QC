@@ -17,36 +17,15 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-// NOTE: The @react-google-maps/api import is intentionally REMOVED from here.
-// Google Maps API is loaded directly in public/index.html now.
-
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
-import { app, storage, db } from './firebase'; // NEW: Import db (Firestore)
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; // NEW: Import Firestore functions
+import { app, storage, db } from './firebase'; // Ensure db is imported
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore'; // NEW: Import getDocs, query, orderBy
 
-const Maps_API_KEY = 'AIzaSyASuiq7EPqMUAQjwdH6KeFPmKb86b9v_c4'; // Your Google Maps API Key
-const VISUAL_CROSSING_API_KEY = '9FFM2WGU7BA9ZGSCT2Z36M9TD'; // Your Visual Crossing API Key
+const Maps_API_KEY = 'AIzaSyASuiq7EPqMUAQjwdH6KeFPmKb86b9v_c4';
+const VISUAL_CROSSING_API_KEY = '9FFM2WGU7BA9ZGSCT2Z36M9TD';
 
-// We'll eventually populate these from Firestore
-const mockGuns = [
-  { id: 'gun1', name: 'Beretta 692' },
-  { id: 'gun2', name: 'Browning Citori' },
-  { id: 'gun3', name: 'Perazzi MX8' },
-];
-
-const mockChokes = [
-  { id: 'choke1', name: 'Improved Modified' },
-  { id: 'choke2', name: 'Light Full' },
-  { id: 'choke3', name: 'Full' },
-];
-
-const mockAmmo = [
-  { id: 'ammo1', name: 'Federal Top Gun' },
-  { id: 'ammo2', name: 'Winchester AA' },
-  { id: 'ammo3', name: 'Remington STS' },
-];
-
+// NO LONGER NEEDED: mockGuns, mockChokes, mockAmmo are removed
 const disciplines = ['Singles', 'Handicaps', 'Doubles'];
 
 const initialSessionData = {
@@ -77,9 +56,50 @@ function SessionLogForm() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [formSubmitMessage, setFormSubmitMessage] = useState(null); // For general form submission success/error
+  const [formSubmitMessage, setFormSubmitMessage] = useState(null);
+
+  // NEW: State for master lists
+  const [guns, setGuns] = useState([]);
+  const [chokes, setChokes] = useState([]);
+  const [ammoOptions, setAmmoOptions] = useState([]);
+  const [masterDataLoading, setMasterDataLoading] = useState(true);
+  const [masterDataError, setMasterDataError] = useState(null);
   
   const locationInputRef = useRef(null);
+
+  // NEW: useEffect to fetch master data from Firestore
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      setMasterDataLoading(true);
+      setMasterDataError(null);
+      try {
+        const fetchCollection = async (collectionName) => {
+          const q = query(collection(db, collectionName), orderBy('name')); // Order by name for dropdown
+          const snapshot = await getDocs(q);
+          return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        };
+
+        const [fetchedGuns, fetchedChokes, fetchedAmmo] = await Promise.all([
+          fetchCollection('shotgunOptions'),
+          fetchCollection('chokeOptions'),
+          fetchCollection('ammoOptions'),
+        ]);
+
+        setGuns(fetchedGuns);
+        setChokes(fetchedChokes);
+        setAmmoOptions(fetchedAmmo);
+        console.log("Master data fetched:", { fetchedGuns, fetchedChokes, fetchedAmmo });
+
+      } catch (err) {
+        console.error("Error fetching master data:", err);
+        setMasterDataError("Failed to load equipment options.");
+      } finally {
+        setMasterDataLoading(false);
+      }
+    };
+    fetchMasterData();
+  }, [db]); // Run once on component mount, or if db instance changes
+
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -265,7 +285,6 @@ function SessionLogForm() {
     let finalSessionData = { ...sessionData };
     let uploadedFileUrl = '';
 
-    // Step 1: Handle File Upload (if any)
     if (sessionData.fileAttachment) {
       setUploadProgress(0);
       try {
@@ -273,7 +292,7 @@ function SessionLogForm() {
         const storageRef = ref(storage, `users/${auth.currentUser.uid}/scoresheets/${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
-        await new Promise((resolve, reject) => { // Use a promise to wait for upload completion
+        await new Promise((resolve, reject) => {
           uploadTask.on(
             'state_changed',
             (snapshot) => {
@@ -285,35 +304,31 @@ function SessionLogForm() {
               console.error("File upload error:", error);
               setUploadError(`File upload failed: ${error.message}`);
               setUploadProgress(0);
-              reject(error); // Reject the promise on error
+              reject(error);
             },
             async () => {
               uploadedFileUrl = await getDownloadURL(uploadTask.snapshot.ref);
-              setSessionData(prevData => ({ ...prevData, fileAttachmentURL: uploadedFileUrl })); // Update state (optional, for UI feedback)
+              setSessionData(prevData => ({ ...prevData, fileAttachmentURL: uploadedFileUrl }));
               setUploadSuccess(true);
               console.log("File available at:", uploadedFileUrl);
-              resolve(); // Resolve the promise on success
+              resolve();
             }
           );
         });
-        finalSessionData.fileAttachmentURL = uploadedFileUrl; // Update URL in data for Firestore
+        finalSessionData.fileAttachmentURL = uploadedFileUrl;
       } catch (error) {
         setFormSubmitMessage({ type: 'error', message: `Error uploading file: ${error.message}` });
-        return; // Stop submission if file upload fails
+        return;
       }
     }
 
-    // Step 2: Save Session Data to Firestore [NEW LOGIC]
     try {
-      // Clean up sessionData before saving: remove transient fileAttachment object
       const { fileAttachment, ...dataToSave } = finalSessionData;
 
-      // Add user ID and timestamp as per Firestore rules
       const sessionWithMetadata = {
         ...dataToSave,
-        userId: auth.currentUser.uid, // Store user ID
-        timestamp: serverTimestamp(), // Firestore server timestamp
-        // Ensure scores are flat or deeply copied if needed, or structured for total score calculation
+        userId: auth.currentUser.uid,
+        timestamp: serverTimestamp(),
         scores: Object.entries(dataToSave.scores).reduce((acc, [discipline, rounds]) => {
           acc[discipline] = rounds.map(r => ({
             value: r.value !== null ? r.value : null,
@@ -323,12 +338,12 @@ function SessionLogForm() {
         }, {}),
       };
 
-      const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/sessions`), sessionWithMetadata); // Save to user's subcollection
+      const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/sessions`), sessionWithMetadata);
       console.log("Session saved with ID:", docRef.id);
       setFormSubmitMessage({ type: 'success', message: 'Session logged successfully!' });
-      setSessionData(initialSessionData); // Reset form after successful submission
-      setUploadProgress(0); // Reset upload progress
-      setUploadSuccess(false); // Reset upload success
+      setSessionData(initialSessionData); // Reset form
+      setUploadProgress(0);
+      setUploadSuccess(false);
     } catch (error) {
       console.error("Error saving session to Firestore:", error);
       setFormSubmitMessage({ type: 'error', message: `Error logging session: ${error.message}` });
@@ -390,7 +405,7 @@ function SessionLogForm() {
                         value={sessionData.eventName}
                         onChange={handleChange}
                         placeholder="Enter registered event name (e.g., State Championship)"
-                        sx={{ mb: 3 }} // Add margin bottom for spacing
+                        sx={{ mb: 3 }}
                     />
                 </Grid>
             )}
@@ -416,7 +431,7 @@ function SessionLogForm() {
                 <MenuItem value="" disabled>
                   <em>Select a gun</em>
                 </MenuItem>
-                {mockGuns.map((option) => (
+                {guns.map((option) => ( // Use 'guns' fetched from Firestore
                   <MenuItem key={option.id} value={option.name}>
                     {option.name}
                   </MenuItem>
@@ -445,7 +460,7 @@ function SessionLogForm() {
                  <MenuItem value="" disabled>
                   <em>Select a choke</em>
                 </MenuItem>
-                {mockChokes.map((option) => (
+                {chokes.map((option) => ( // Use 'chokes' fetched from Firestore
                   <MenuItem key={option.id} value={option.name}>
                     {option.name}
                   </MenuItem>
@@ -474,7 +489,7 @@ function SessionLogForm() {
                  <MenuItem value="" disabled>
                   <em>Select ammo</em>
                 </MenuItem>
-                {mockAmmo.map((option) => (
+                {ammoOptions.map((option) => ( // Use 'ammoOptions' fetched from Firestore
                   <MenuItem key={option.id} value={option.name}>
                     {option.name}
                   </MenuItem>
@@ -670,6 +685,17 @@ function SessionLogForm() {
             </Grid>
           </Grid>
         </form>
+        {masterDataLoading && (
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <CircularProgress size={20} />
+            <Typography variant="body2" sx={{ ml: 1 }}>Loading equipment options...</Typography>
+          </Box>
+        )}
+        {masterDataError && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {masterDataError}
+          </Alert>
+        )}
         {formSubmitMessage && (
           <Alert severity={formSubmitMessage.type} sx={{ mt: 2 }}>
             {formSubmitMessage.message}
