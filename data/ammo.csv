@@ -1,0 +1,140 @@
+Make,Model,Gauge,Shot Size,Shot Weight,Velocity (fps)
+Federal,Top Gun,12 Gauge,7.5,1-1/8 oz,1200
+Federal,Top Gun,12 Gauge,7.5,1-1/8 oz,1145
+Federal,Top Gun,12 Gauge,8,1-1/8 oz,1145
+Federal,Top Gun,12 Gauge,8,1 oz,1180
+Federal,Top Gun,12 Gauge,9,1-1/8 oz,1145
+Federal,Top Gun,20 Gauge,8,7/8 oz,1200
+Federal,HOA,12 Gauge,7.5,1-1/8 oz,1145
+Federal,HOA,12 Gauge,7.5,1-1/8 oz,1200
+Federal,HOA,12 Gauge,7.5,1-1/8 oz,1250
+Federal,HOA,12 Gauge,7.5,1 oz,1200
+Federal,HOA,12 Gauge,7.5,1 oz,1250
+Federal,HOA,12 Gauge,7.5,1 oz,1290
+Federal,HOA,12 Gauge,7.5,7/8 oz,1200
+Federal,HOA,12 Gauge,7.5,7/8 oz,1275
+Federal,HOA,12 Gauge,7.5,7/8 oz,1335
+Federal,HOA,12 Gauge,7.5,24 grams,1335
+Federal,HOA,12 Gauge,8,1-1/8 oz,1145
+Federal,HOA,12 Gauge,8,1-1/8 oz,1200
+Federal,HOA,12 Gauge,8,1-1/8 oz,1250
+Federal,HOA,12 Gauge,8,1 oz,1200
+Federal,HOA,12 Gauge,8,1 oz,1250
+Federal,HOA,12 Gauge,8,1 oz,1290
+Federal,HOA,12 Gauge,8,7/8 oz,1275
+Federal,HOA,12 Gauge,9,1-1/8 oz,1145
+Federal,HOA,12 Gauge,9,24 grams,1335
+Federal,HOA,20 Gauge,7.5,7/8 oz,1200
+Federal,HOA,20 Gauge,7.5,7/8 oz,1275
+Federal,HOA,20 Gauge,8,7/8 oz,1200
+Federal,HOA,20 Gauge,8,7/8 oz,1275
+Federal,HOA,20 Gauge,9,7/8 oz,1275
+Federal,HOA,28 Gauge,8,3/4 oz,1250
+Federal,HOA,28 Gauge,8,3/4 oz,1300
+Federal,HOA,28 Gauge,9,3/4 oz,1250
+Federal,HOA,28 Gauge,9,3/4 oz,1300
+Federal,HOA,.410 Bore,8,1/2 oz,1200
+Federal,HOA,.410 Bore,8,1/2 oz,1275
+Federal,HOA,.410 Bore,9,1/2 oz,1200
+Federal,HOA,.410 Bore,9,1/2 oz,1275
+Federal,Gold Medal Paper,12 Gauge,7.5,1-1/8 oz,1200
+Federal,Gold Medal Paper,12 Gauge,7.5,1 oz,1290
+Federal,Gold Medal Grand Paper,12 Gauge,8,1-1/8 oz,1145
+Federal,Gold Medal Grand Paper,12 Gauge,8,1 oz,1180
+Remington,Gun Club,12 Gauge,7.5,1-1/8 oz,1145
+Remington,Gun Club,12 Gauge,7.5,1-1/8 oz,1200
+Remington,Gun Club,12 Gauge,7.5,1 oz,1200
+Remington,Gun Club,12 Gauge,8,1-1/8 oz,1145
+Remington,Gun Club,12 Gauge,8,1-1/8 oz,1200
+Remington,Gun Club,12 Gauge,8,1 oz,1185
+Remington,Gun Club,12 Gauge,9,1-1/8 oz,1145
+Remington,Premier STS,12 Gauge,7.5,1-1/8 oz,1100
+Remington,Premier STS,12 Gauge,7.5,1-1/8 oz,1145
+Remington,Premier STS,12 Gauge,7.5,1-1/8 oz,1200
+Remington,Premier STS,12 Gauge,8,1-1/8 oz,1100
+Remington,Premier STS,12 Gauge,8,1-1/8 oz,1145
+Remington,Premier STS,12 Gauge,8,1-1/8 oz,1200
+Remington,Premier STS,12 Gauge,8,1 oz,1185
+Remington,Premier STS,12 Gauge,9,1-1/8 oz,1145
+Remington,Premier STS,12 Gauge,9,7/8 oz,1200
+Remington,Premier STS,20 Gauge,8,7/8 oz,1200
+Remington,Premier STS,28 Gauge,8,3/4 oz,1250
+Remington,Premier STS,28 Gauge,9,3/4 oz,1250
+Remington,Premier Nitro Sporting Clays,12 Gauge,7.5,1-1/8 oz,1300
+Remington,Premier Nitro Sporting Clays,12 Gauge,7.5,1 oz,1350
+Remington,Premier Nitro Sporting Clays,12 Gauge,8,1-1/8 oz,1300
+Winchester,Super Target,12 Gauge,7.5,1-1/8 oz,1145
+Winchester,Super Target,12 Gauge,7.5,1-1/8 oz,1180
+Winchester,Super Target,12 Gauge,7.5,1-1/8 oz,1200
+Winchester,Super Target,12 Gauge,7.5,1 oz,1145
+Winchester,Super Target,12 Gauge,7.5,1 oz,1180
+Winchester,Super Target,12 Gauge,7.5,1 oz,1200
+Winchester,Super Target,12 Gauge,7.5,7/8 oz,1145
+Winchester,Super Target,12 Gauge,7.5,7/8 oz,1180
+Winchester,Super Target,12 Gauge,7.5,7/8 oz,1200
+Winchester,Super Target,12 Gauge,8,1-1/8 oz,1145
+Winchester,Super Target,12 Gauge,8,1-1/8 oz,1180
+Winchester,Super Target,12 Gauge,8,1-1/8 oz,1200
+Winchester,Super Target,12 Gauge,8,1 oz,1145
+Winchester,Super Target,12 Gauge,8,1 oz,1180
+Winchester,Super Target,12 Gauge,8,1 oz,1200
+Winchester,Super Target,12 Gauge,8,7/8 oz,1145
+Winchester,Super Target,12 Gauge,8,7/8 oz,1180
+Winchester,Super Target,12 Gauge,8,7/8 oz,1200
+Winchester,Super Target,20 Gauge,7.5,7/8 oz,1200
+Winchester,AA,12 Gauge,7.5,1-1/8 oz,1165
+Winchester,AA,12 Gauge,7.5,1-1/8 oz,1200
+Winchester,AA,12 Gauge,7.5,1 oz,1165
+Winchester,AA,12 Gauge,7.5,1 oz,1200
+Winchester,AA,12 Gauge,8,1-1/8 oz,1165
+Winchester,AA,12 Gauge,8,1-1/8 oz,1200
+Winchester,AA,12 Gauge,8,1 oz,1165
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,1-1/8 oz,1165
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,1-1/8 oz,1200
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,1-1/8 oz,1250
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,1-1/8 oz,1280
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,1 oz,1170
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,1 oz,1200
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,1 oz,1250
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,7/8 oz,1200
+Fiocchi,Shooting Dynamics,12 Gauge,7.5,7/8 oz,1350
+Fiocchi,Shooting Dynamics,12 Gauge,8,1-1/8 oz,1165
+Fiocchi,Shooting Dynamics,12 Gauge,8,1-1/8 oz,1200
+Fiocchi,Shooting Dynamics,12 Gauge,8,1-1/8 oz,1250
+Fiocchi,Shooting Dynamics,12 Gauge,8,1-1/8 oz,1280
+Fiocchi,Shooting Dynamics,12 Gauge,8,1 oz,1170
+Fiocchi,Shooting Dynamics,12 Gauge,8,1 oz,1200
+Fiocchi,Shooting Dynamics,12 Gauge,8,1 oz,1250
+Fiocchi,Shooting Dynamics,12 Gauge,8,7/8 oz,1200
+Fiocchi,Shooting Dynamics,12 Gauge,8,7/8 oz,1350
+Fiocchi,Shooting Dynamics,12 Gauge,9,1-1/8 oz,1165
+Fiocchi,Shooting Dynamics,12 Gauge,9,1 oz,1200
+Fiocchi,Shooting Dynamics,20 Gauge,7.5,7/8 oz,1210
+Fiocchi,Shooting Dynamics,20 Gauge,8,7/8 oz,1210
+Fiocchi,Crusher,12 Gauge,7.5,1 oz,1300
+Fiocchi,Crusher,12 Gauge,8,1 oz,1300
+Fiocchi,Interceptor Spreader,12 Gauge,8,1 oz,1300
+Fiocchi,Power Spreader,12 Gauge,8,1-1/8 oz,1250
+Fiocchi,Super Crusher,12 Gauge,7.5,1 oz,1400
+Fiocchi,Super Crusher,12 Gauge,8,1 oz,1400
+Fiocchi,Little Rino,12 Gauge,7.5,1 oz,1250
+Fiocchi,Little Rino,12 Gauge,8,1 oz,1250
+Fiocchi,Little Rino,12 Gauge,9,1-1/8 oz,1250
+Fiocchi,VIP,20 Gauge,7.5,7/8 oz,1200
+Fiocchi,VIP,20 Gauge,8,7/8 oz,1200
+Fiocchi,VIP,20 Gauge,9,7/8 oz,1200
+Fiocchi,VIP,28 Gauge,7.5,3/4 oz,1200
+Fiocchi,VIP,28 Gauge,8,3/4 oz,1200
+Fiocchi,VIP,28 Gauge,9,3/4 oz,1200
+Fiocchi,VIP,.410 Bore,7.5,1/2 oz,1250
+Fiocchi,VIP,.410 Bore,8,1/2 oz,1250
+Fiocchi,VIP,.410 Bore,9,1/2 oz,1250
+Fiocchi,VIP Heavy,20 Gauge,7.5,7/8 oz,1250
+Fiocchi,VIP Heavy,20 Gauge,8,7/8 oz,1250
+Fiocchi,VIP Heavy,28 Gauge,7.5,3/4 oz,1300
+Fiocchi,VIP Heavy,28 Gauge,8,3/4 oz,1300
+Fiocchi,White Rino,12 Gauge,7.5,1-1/8 oz,1250
+Fiocchi,White Rino,12 Gauge,8,1-1/8 oz,1250
+Fiocchi,White Rino,12 Gauge,9,1-1/8 oz,1250
+Fiocchi,White Rino International,12 Gauge,7.5,24 grams,1350
+Fiocchi,White Rino International,12 Gauge,9,24 grams,1350
