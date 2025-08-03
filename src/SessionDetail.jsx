@@ -1,20 +1,28 @@
-import React, { useState, useEffect } from 'react'; // Added useState and useEffect
-import { useParams, Link } from 'react-router-dom'; // Keep useParams and Link
-import { Box, Typography, Paper, Button, CircularProgress, Alert } from '@mui/material'; // Added CircularProgress and Alert
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Box, Typography, Paper, Button, CircularProgress, Alert } from '@mui/material';
 
-// NEW: Import Firestore and Auth
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
-import { app, db } from './firebase'; // Ensure db is imported
+import { app, db, storage } from './firebase';
 
-// NO LONGER NEEDED: const mockSessions = [...]; // Mock data is removed
+// Define getMaxScore function directly in this file
+const getMaxScore = (discipline) => {
+  if (discipline === 'Doubles') {
+    return 50;
+  }
+  return 25;
+};
 
 function SessionDetail() {
-  const { sessionId } = useParams(); // Get the sessionId from the URL
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const auth = getAuth(app); // Get Firebase Auth instance
+  const [deleteMessage, setDeleteMessage] = useState(null);
+  const auth = getAuth(app);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -31,15 +39,13 @@ function SessionDetail() {
 
       const userId = auth.currentUser.uid;
       try {
-        const sessionDocRef = doc(db, `users/${userId}/sessions`, sessionId); // Reference to the specific session document
-        const sessionDocSnap = await getDoc(sessionDocRef); // Fetch the document
+        const sessionDocRef = doc(db, `users/${userId}/sessions`, sessionId);
+        const sessionDocSnap = await getDoc(sessionDocRef);
 
         if (sessionDocSnap.exists()) {
           setSession({ id: sessionDocSnap.id, ...sessionDocSnap.data() });
-          console.log("Fetched session details:", sessionDocSnap.data());
         } else {
           setError("Session not found in database.");
-          console.warn("No such session document!");
         }
       } catch (err) {
         console.error("Error fetching session details:", err);
@@ -49,10 +55,45 @@ function SessionDetail() {
       }
     };
 
-    setLoading(true); // Start loading when effect runs
-    setError(null);    // Clear previous errors
+    setLoading(true);
+    setError(null);
+    setDeleteMessage(null);
     fetchSession();
-  }, [sessionId, auth.currentUser, db]); // Re-run effect if sessionId, user, or db changes
+  }, [sessionId, auth.currentUser, db]);
+
+  const handleDeleteSession = async () => {
+    if (!auth.currentUser || !session) {
+      setDeleteMessage({ type: 'error', message: 'Authentication required or session not loaded.' });
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
+      try {
+        setDeleteMessage({ type: 'info', message: 'Deleting session...' });
+        const userId = auth.currentUser.uid;
+        const sessionDocRef = doc(db, `users/${userId}/sessions`, session.id);
+
+        if (session.fileAttachmentURL) {
+          try {
+            const fileRef = ref(storage, session.fileAttachmentURL);
+            await deleteObject(fileRef);
+            console.log("File deleted from Storage:", session.fileAttachmentURL);
+          } catch (fileErr) {
+            console.warn("Could not delete file from storage (might not exist or permission issue):", fileErr.message);
+          }
+        }
+
+        await deleteDoc(sessionDocRef);
+        console.log("Session deleted from Firestore:", session.id);
+        setDeleteMessage({ type: 'success', message: 'Session deleted successfully!' });
+        navigate('/history');
+      } catch (error) {
+        console.error("Error deleting session:", error);
+        setDeleteMessage({ type: 'error', message: `Failed to delete session: ${error.message}` });
+      }
+    }
+  };
+
 
   if (loading) {
     return (
@@ -105,7 +146,7 @@ function SessionDetail() {
           rounds.length > 0 && (
             <Typography key={discipline} variant="body1">
               <strong>{discipline}:</strong> {rounds.map(r => r.value !== null ? r.value : (r.didNotShoot ? 'DNS' : 'N/A')).join(', ')}
-              {` (Total: ${rounds.reduce((sum, r) => sum + (r.value || 0), 0)}/${rounds.length * 25})`} {/* Calculated total */}
+              {` (Total: ${rounds.reduce((sum, r) => sum + (r.value || 0), 0)}/${rounds.length * getMaxScore(discipline)})`}
             </Typography>
           )
         ))}
@@ -130,10 +171,33 @@ function SessionDetail() {
                 </Button>
             </Box>
         )}
+        
+        {deleteMessage && (
+          <Alert severity={deleteMessage.type} sx={{ mt: 2 }}>
+            {deleteMessage.message}
+          </Alert>
+        )}
 
-        <Button component={Link} to="/history" variant="contained" sx={{ mt: 3 }}>
-          Back to Session History
-        </Button>
+        <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+            <Button component={Link} to="/history" variant="contained">
+              Back to Session History
+            </Button>
+            <Button 
+                component={Link} 
+                to={`/session/edit/${session.id}`} 
+                variant="outlined" 
+                color="primary"
+            >
+                Edit Session
+            </Button>
+            <Button
+                variant="outlined"
+                color="error"
+                onClick={handleDeleteSession}
+            >
+                Delete Session
+            </Button>
+        </Box>
       </Paper>
     </Box>
   );

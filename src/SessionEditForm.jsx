@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom'; // NEW: useParams and useNavigate
 import {
   Box,
   Typography,
@@ -18,10 +18,10 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'; // NEW: deleteObject
 import { getAuth } from 'firebase/auth';
 import { app, storage, db } from './firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore'; // NEW: getDoc, updateDoc
 
 const Maps_API_KEY = 'AIzaSyASuiq7EPqMUAQjwdH6KeFPmKb86b9v_c4';
 const VISUAL_CROSSING_API_KEY = '9FFM2WGU7BA9ZGSCT2Z36M9TD';
@@ -36,7 +36,7 @@ const getMaxScore = (discipline) => {
 };
 
 // Initial state for form (used for resetting and default)
-const initialSessionData = {
+const initialFormState = {
   date: new Date().toISOString().split('T')[0],
   time: new Date().toTimeString().split(' ')[0].substring(0, 5),
   location: '',
@@ -57,11 +57,15 @@ const initialSessionData = {
   fileAttachmentURL: '',
 };
 
-function SessionLogForm() { // This component is exclusively for logging new sessions
+function SessionEditForm() { // Renamed from SessionLogForm to SessionEditForm
+  const { sessionId } = useParams(); // Get the session ID from the URL
+  const navigate = useNavigate(); // For navigation after save/cancel
   const auth = getAuth(app);
-  const navigate = useNavigate();
 
-  const [sessionData, setSessionData] = useState(initialSessionData);
+  const [sessionData, setSessionData] = useState(initialFormState);
+  const [loadingSession, setLoadingSession] = useState(true); // NEW: State for loading existing session
+  const [sessionError, setSessionError] = useState(null); // NEW: State for errors loading existing session
+
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState(null);
@@ -76,6 +80,53 @@ function SessionLogForm() { // This component is exclusively for logging new ses
   
   const locationInputRef = useRef(null);
 
+  // NEW: Effect to fetch existing session data when component mounts or sessionId changes
+  useEffect(() => {
+    const fetchExistingSession = async () => {
+      if (!auth.currentUser || !sessionId) {
+        setSessionError("Authentication or Session ID missing.");
+        setLoadingSession(false);
+        return;
+      }
+      setLoadingSession(true);
+      setSessionError(null);
+      try {
+        const userId = auth.currentUser.uid;
+        const sessionDocRef = doc(db, `users/${userId}/sessions`, sessionId);
+        const sessionDocSnap = await getDoc(sessionDocRef);
+
+        if (sessionDocSnap.exists()) {
+          const data = sessionDocSnap.data();
+          // Ensure scores are properly structured with value/didNotShoot for UI
+          const scoresForForm = {};
+          disciplines.forEach(d => {
+            scoresForForm[d] = data.scores[d] || [];
+          });
+
+          setSessionData({
+            ...initialFormState, // Start with defaults to clear previous
+            ...data,
+            // Adjust score structure for form if needed (Firebase stores simple array of values by default sometimes)
+            scores: scoresForForm,
+            // Ensure fileAttachment is null, only URL is kept
+            fileAttachment: null,
+          });
+          console.log("Existing session data loaded:", data);
+        } else {
+          setSessionError("Session not found for editing.");
+        }
+      } catch (err) {
+        console.error("Error fetching existing session for edit:", err);
+        setSessionError("Failed to load session for editing.");
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+    fetchExistingSession();
+  }, [sessionId, auth.currentUser, db]);
+
+
+  // Master data fetching (same as in SessionLogForm)
   useEffect(() => {
     const fetchMasterData = async () => {
       setMasterDataLoading(true);
@@ -96,7 +147,6 @@ function SessionLogForm() { // This component is exclusively for logging new ses
         setGuns(fetchedGuns);
         setChokes(fetchedChokes);
         setAmmoOptions(fetchedAmmo);
-        console.log("Master data fetched:", { fetchedGuns, fetchedChokes, fetchedAmmo });
 
       } catch (err) {
         console.error("Error fetching master data:", err);
@@ -308,7 +358,7 @@ function SessionLogForm() { // This component is exclusively for logging new ses
     setFormSubmitMessage(null);
 
     if (!auth.currentUser) {
-      setFormSubmitMessage({ type: 'error', message: 'Please sign in to log a session.' });
+      setFormSubmitMessage({ type: 'error', message: 'Please sign in to log/edit a session.' });
       return;
     }
 
@@ -368,23 +418,53 @@ function SessionLogForm() { // This component is exclusively for logging new ses
         }, {}),
       };
 
-      const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/sessions`), sessionWithMetadata);
-      console.log("Session saved with ID:", docRef.id);
-      setFormSubmitMessage({ type: 'success', message: 'Session logged successfully!' });
-      setSessionData(initialSessionData); // Reset form
-      setUploadProgress(0);
-      setUploadSuccess(false);
-      navigate('/history'); // Auto-navigate to history after new log
+      // NEW: Update existing document or add new one
+      if (sessionId) { // If sessionId exists, update existing document
+        const sessionDocRef = doc(db, `users/${auth.currentUser.uid}/sessions`, sessionId);
+        await updateDoc(sessionDocRef, sessionWithMetadata);
+        console.log("Session updated with ID:", sessionId);
+        setFormSubmitMessage({ type: 'success', message: 'Session updated successfully!' });
+        navigate(`/session/${sessionId}`); // Navigate back to detail page after update
+      } else { // Otherwise, add a new document (from SessionLogForm, not SessionEditForm)
+        const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/sessions`), sessionWithMetadata);
+        console.log("Session logged with ID:", docRef.id);
+        setFormSubmitMessage({ type: 'success', message: 'Session logged successfully!' });
+        setSessionData(initialFormState); // Reset form only for new session
+        setUploadProgress(0);
+        setUploadSuccess(false);
+        navigate('/history'); // NEW: Auto-navigate to history after new log
+      }
     } catch (error) {
       console.error("Error saving session to Firestore:", error);
-      setFormSubmitMessage({ type: 'error', message: `Error logging session: ${error.message}` });
+      setFormSubmitMessage({ type: 'error', message: `Error logging/editing session: ${error.message}` });
     }
   };
+
+  if (loadingSession) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <CircularProgress />
+        <Typography>Loading session for editing...</Typography>
+      </Box>
+    );
+  }
+
+  if (sessionError) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Alert severity="error">{sessionError}</Alert>
+        <Button onClick={() => navigate('/history')} variant="contained" sx={{ mt: 2 }}>
+          Back to Session History
+        </Button>
+      </Box>
+    );
+  }
+
 
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Log New Session
+        {sessionId ? 'Edit Session' : 'Log New Session'} {/* Dynamic title */}
       </Typography>
       <Paper sx={{ p: 3, mb: 4 }}>
         <form onSubmit={handleSubmit}>
@@ -583,7 +663,7 @@ function SessionLogForm() { // This component is exclusively for logging new ses
                   File selected: {sessionData.fileAttachment.name}
                 </Typography>
               )}
-              {sessionData.fileAttachmentURL && ( // Show existing URL if no new file selected
+              {sessionData.fileAttachmentURL && !sessionData.fileAttachment && ( // Show existing URL if no new file selected
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   Current File: <a href={sessionData.fileAttachmentURL} target="_blank" rel="noopener noreferrer">View</a>
                 </Typography>
@@ -758,8 +838,18 @@ function SessionLogForm() { // This component is exclusively for logging new ses
             {/* Submit Button */}
             <Grid item xs={12}>
               <Button type="submit" variant="contained" color="primary">
-                Log Session
+                {sessionId ? 'Update Session' : 'Log Session'} {/* Dynamic button text */}
               </Button>
+              {sessionId && ( // Show Cancel button only in edit mode
+                  <Button
+                      variant="outlined"
+                      color="secondary"
+                      onClick={() => navigate(`/session/${sessionId}`)}
+                      sx={{ ml: 2 }}
+                  >
+                      Cancel
+                  </Button>
+              )}
             </Grid>
           </Grid>
         </form>
@@ -784,4 +874,4 @@ function SessionLogForm() { // This component is exclusively for logging new ses
   );
 }
 
-export default SessionLogForm;
+export default SessionEditForm; // Export as SessionEditForm
