@@ -35,7 +35,6 @@ const getMaxScore = (discipline) => {
   return 25;
 };
 
-// Initial state for form (used for resetting and default)
 const initialSessionData = {
   date: new Date().toISOString().split('T')[0],
   time: new Date().toTimeString().split(' ')[0].substring(0, 5),
@@ -47,6 +46,7 @@ const initialSessionData = {
   ammunitionUsed: '',
   weather: '',
   registeredEvent: false,
+  isChampionshipEvent: false, // NEW: State for championship event
   scores: {
     Singles: [],
     Handicaps: [],
@@ -57,7 +57,7 @@ const initialSessionData = {
   fileAttachmentURL: '',
 };
 
-function SessionLogForm() { // This component is exclusively for logging new sessions
+function SessionLogForm() {
   const auth = getAuth(app);
   const navigate = useNavigate();
 
@@ -193,17 +193,22 @@ function SessionLogForm() { // This component is exclusively for logging new ses
     });
   };
 
+  // MODIFIED: Adjust for registered event mode and championship event
   useEffect(() => {
     if (sessionData.registeredEvent) {
       setSessionData(prevData => {
         const newScores = { ...prevData.scores };
         disciplines.forEach(discipline => {
           const initialRoundValue = { value: null, didNotShoot: false };
-          if (discipline === 'Singles' || discipline === 'Handicaps') {
-            newScores[discipline] = Array(4).fill(null).map((_, i) => prevData.scores[discipline]?.[i] || initialRoundValue);
+          let numRounds = 0;
+          if (discipline === 'Singles') {
+            numRounds = prevData.isChampionshipEvent ? 8 : 4; // 8 rounds for 200 targets, 4 for 100 targets
+          } else if (discipline === 'Handicaps') {
+            numRounds = 4; // Always 4 rounds for 100 targets
           } else if (discipline === 'Doubles') {
-            newScores[discipline] = Array(2).fill(null).map((_, i) => prevData.scores[discipline]?.[i] || initialRoundValue);
+            numRounds = 2; // Always 2 rounds for 100 targets
           }
+          newScores[discipline] = Array(numRounds).fill(null).map((_, i) => prevData.scores[discipline]?.[i] || initialRoundValue);
         });
 
         Object.keys(newScores).forEach(discipline => {
@@ -218,10 +223,11 @@ function SessionLogForm() { // This component is exclusively for logging new ses
           scores: newScores,
         };
       });
-    } else {
+    } else { // Practice Mode
       setSessionData(prevData => ({
         ...prevData,
         eventName: '',
+        isChampionshipEvent: false, // Clear championship event status for practice
         scores: {
           Singles: [],
           Handicaps: [],
@@ -229,7 +235,7 @@ function SessionLogForm() { // This component is exclusively for logging new ses
         }
       }));
     }
-  }, [sessionData.registeredEvent]);
+  }, [sessionData.registeredEvent, sessionData.isChampionshipEvent]); // Added isChampionshipEvent to dependency array
 
   useEffect(() => {
     if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
@@ -371,10 +377,10 @@ function SessionLogForm() { // This component is exclusively for logging new ses
       const docRef = await addDoc(collection(db, `users/${auth.currentUser.uid}/sessions`), sessionWithMetadata);
       console.log("Session saved with ID:", docRef.id);
       setFormSubmitMessage({ type: 'success', message: 'Session logged successfully!' });
-      setSessionData(initialSessionData); // Reset form
+      setSessionData(initialSessionData);
       setUploadProgress(0);
       setUploadSuccess(false);
-      navigate('/history'); // Auto-navigate to history after new log
+      navigate('/history');
     } catch (error) {
       console.error("Error saving session to Firestore:", error);
       setFormSubmitMessage({ type: 'error', message: `Error logging session: ${error.message}` });
@@ -583,7 +589,7 @@ function SessionLogForm() { // This component is exclusively for logging new ses
                   File selected: {sessionData.fileAttachment.name}
                 </Typography>
               )}
-              {sessionData.fileAttachmentURL && ( // Show existing URL if no new file selected
+              {sessionData.fileAttachmentURL && (
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   Current File: <a href={sessionData.fileAttachmentURL} target="_blank" rel="noopener noreferrer">View</a>
                 </Typography>
@@ -634,6 +640,22 @@ function SessionLogForm() { // This component is exclusively for logging new ses
               />
             </Grid>
 
+            {/* NEW: Championship Event Toggle (only for Registered Events) */}
+            {sessionData.registeredEvent && (
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={sessionData.isChampionshipEvent}
+                      onChange={handleChange}
+                      name="isChampionshipEvent"
+                    />
+                  }
+                  label="Championship Event (Singles 200 Targets)"
+                />
+              </Grid>
+            )}
+
             {/* Dynamic Score Entry Logic */}
             <Grid item xs={12}>
               <Paper sx={{ p: 2, border: '1px solid lightgrey' }}>
@@ -660,9 +682,11 @@ function SessionLogForm() { // This component is exclusively for logging new ses
                         
                         <Grid container spacing={1} alignItems="center">
                           {
-                            // Registered Doubles has 2 rounds of 50, others have 4 rounds of 25
-                            (discipline === 'Doubles' ? [0, 1] : [0, 1, 2, 3]).map((roundIndex) => (
-                            <Grid item xs={discipline === 'Doubles' ? 6 : 3} key={`${discipline}-${roundIndex}`}>
+                            (discipline === 'Singles' && sessionData.isChampionshipEvent ? Array(8).fill(null) : // 8 rounds for Championship Singles
+                            discipline === 'Doubles' ? [0, 1] : // 2 rounds for Doubles
+                            [0, 1, 2, 3] // 4 rounds for regular Singles/Handicaps
+                            ).map((roundIndex) => (
+                            <Grid item xs={discipline === 'Doubles' || (discipline === 'Singles' && sessionData.isChampionshipEvent) ? 6 : 3} key={`${discipline}-${roundIndex}`}> {/* Doubles and Champ Singles take more width */}
                               <TextField
                                 fullWidth
                                 label={`Round ${roundIndex + 1}`}
@@ -681,7 +705,7 @@ function SessionLogForm() { // This component is exclusively for logging new ses
                 ) : (
                   // Practice Mode
                   <Box>
-                    {masterDataLoading ? ( // Show loading for practice options too
+                    {masterDataLoading ? (
                         <Box sx={{ textAlign: 'center', mt: 2 }}>
                             <CircularProgress size={20} />
                             <Typography variant="body2" sx={{ ml: 1 }}>Loading practice options...</Typography>
@@ -689,7 +713,6 @@ function SessionLogForm() { // This component is exclusively for logging new ses
                     ) : masterDataError ? (
                         <Alert severity="error">{masterDataError}</Alert>
                     ) : (
-                        // Conditionally render "No disciplines added" if all are empty
                         disciplines.every(d => !sessionData.scores[d] || sessionData.scores[d].length === 0) ? (
                             <Box sx={{ textAlign: 'center', mt: 2, mb: 2 }}>
                                 <Typography variant="body1" color="text.secondary">No disciplines added. Use the "Add Discipline" dropdown below.</Typography>

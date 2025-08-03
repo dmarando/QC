@@ -1,8 +1,22 @@
+'use client'; // This directive must be at the very top on its own line
+
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Grid, Paper, CircularProgress, Alert } from '@mui/material';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { app, db } from './firebase';
+
+// NOTE: PerformanceChart import is TEMPORARILY REMOVED to get Dashboard working
+// import PerformanceChart from './PerformanceChart'; // This line is GONE for now
+
+
+// Helper function to get max score for a discipline
+const getMaxScore = (discipline) => {
+  if (discipline === 'Doubles') {
+    return 50;
+  }
+  return 25;
+};
 
 function Dashboard() {
   const [sessions, setSessions] = useState([]);
@@ -14,11 +28,17 @@ function Dashboard() {
   const [totalTargets, setTotalTargets] = useState('--');
   const [totalSessions, setTotalSessions] = useState('--');
   const [bestScore, setBestScore] = useState('--/100');
+  const [bestScoreNumeric, setBestScoreNumeric] = useState(0); 
+
+  const [bestScoreEventName, setBestScoreEventName] = useState('--');
+  const [bestScoreLocation, setBestScoreLocation] = useState('--');
+  const [bestScoreDate, setBestScoreDate] = useState('--');
+  const [bestScoreDiscipline, setBestScoreDiscipline] = useState('--');
+
 
   const [totalRegisteredTargets, setTotalRegisteredTargets] = useState('--');
   const [totalPracticeTargets, setTotalPracticeTargets] = useState('--');
 
-  // NEW: State for Discipline-specific KPIs
   const [singlesRegAvg, setSinglesRegAvg] = useState('--%');
   const [singlesRegTargets, setSinglesRegTargets] = useState('--');
   const [handicapsRegAvg, setHandicapsRegAvg] = useState('--%');
@@ -32,6 +52,11 @@ function Dashboard() {
   const [handicapsPracTargets, setHandicapsPracTargets] = useState('--');
   const [doublesPracAvg, setDoublesPracAvg] = useState('--%');
   const [doublesPracTargets, setDoublesPracTargets] = useState('--');
+
+  // Chart data states (will be populated once PerformanceChart is re-integrated)
+  const [registeredChartData, setRegisteredChartData] = useState({ labels: [], data: [] });
+  const [practiceChartData, setPracticeChartData] = useState({ labels: [], data: [] });
+
 
   useEffect(() => {
     if (!auth.currentUser) {
@@ -63,32 +88,41 @@ function Dashboard() {
 
   useEffect(() => {
     if (sessions.length > 0) {
-      let totalScoreSum = 0;
-      let totalPossibleTargets = 0;
-      let highestScore = 0;
+      let totalScoreSumAll = 0;
+      let totalPossibleTargetsAll = 0;
+      let highest100TargetScore = 0;
+      let bestScoreDetails = { eventName: '--', location: '--', date: '--', discipline: '--' };
 
       let registeredTargetsHit = 0;
       let practiceTargetsHit = 0;
 
-      // Discipline specific accumulators
       const disciplineStats = {
         Singles: { regHits: 0, regPossible: 0, pracHits: 0, pracPossible: 0 },
         Handicaps: { regHits: 0, regPossible: 0, pracHits: 0, pracPossible: 0 },
         Doubles: { regHits: 0, regPossible: 0, pracHits: 0, pracPossible: 0 },
       };
 
-      sessions.forEach(session => {
-        let sessionScore = 0;
-        let sessionPossible = 0;
+      // Chart data preparation variables (will be used once charts are active)
+      const registeredScoresOverTime = [];
+      const registeredDates = [];
+      const practiceScoresOverTime = [];
+      const practiceDates = [];
 
-        for (const discipline in session.scores) {
+      // Process sessions for KPIs and Chart Data (Iterate oldest to newest for chart display)
+      const sortedForChart = [...sessions].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      sortedForChart.forEach(session => {
+        let sessionScoreTotal = 0;
+        let sessionPossibleTotal = 0;
+
+        for (const discipline of Object.keys(session.scores)) {
           if (session.scores[discipline] && Array.isArray(session.scores[discipline])) {
             session.scores[discipline].forEach(round => {
               const roundScore = round.value !== null && round.value !== undefined ? round.value : 0;
-              const roundPossible = 25; // Each round is 25 targets
+              const roundPossible = getMaxScore(discipline);
 
-              sessionScore += roundScore;
-              sessionPossible += roundPossible;
+              sessionScoreTotal += roundScore;
+              sessionPossibleTotal += roundPossible;
 
               if (session.registeredEvent) {
                 disciplineStats[discipline].regHits += roundScore;
@@ -101,65 +135,100 @@ function Dashboard() {
           }
         }
 
-        totalScoreSum += sessionScore;
-        totalPossibleTargets += sessionPossible;
+        totalScoreSumAll += sessionScoreTotal;
+        totalPossibleTargetsAll += sessionPossibleTotal;
 
         if (session.registeredEvent) {
-          registeredTargetsHit += sessionScore;
+          registeredTargetsHit += sessionScoreTotal;
+          // Add to registered chart data if it's a 100-target event or overall performance percentage
+          if (sessionPossibleTotal > 0) { // Only add if targets were actually shot
+              registeredDates.push(session.date);
+              registeredScoresOverTime.push(((sessionScoreTotal / sessionPossibleTotal) * 100).toFixed(1)); // Percentage for chart
+          }
         } else {
-          practiceTargetsHit += sessionScore;
+          practiceTargetsHit += sessionScoreTotal;
+          // Add to practice chart data
+          if (sessionPossibleTotal > 0) { // Only add if targets were actually shot
+              practiceDates.push(session.date);
+              practiceScoresOverTime.push(((sessionScoreTotal / sessionPossibleTotal) * 100).toFixed(1)); // Percentage for chart
+          }
         }
 
-        if (session.registeredEvent && sessionPossible >= 100) {
-            if (sessionScore > highestScore) {
-                highestScore = sessionScore;
+        if (session.registeredEvent) {
+            for (const discipline of ['Singles', 'Handicaps', 'Doubles']) {
+                if (disciplineStats[discipline].regPossible === 100) {
+                    if (disciplineStats[discipline].regHits > highest100TargetScore) {
+                        highest100TargetScore = disciplineStats[discipline].regHits;
+                        bestScoreDetails = {
+                            eventName: session.eventName || 'N/A',
+                            location: session.location || 'N/A',
+                            date: session.date || 'N/A',
+                            discipline: discipline,
+                        };
+                    }
+                }
             }
         }
       });
 
-      const avg = totalPossibleTargets > 0 ? ((totalScoreSum / totalPossibleTargets) * 100).toFixed(1) : '--';
+      const avg = totalPossibleTargetsAll > 0 ? ((totalScoreSumAll / totalPossibleTargetsAll) * 100).toFixed(1) : '--';
       
       setOverallAverage(`${avg}%`);
-      setTotalTargets(totalScoreSum);
+      setTotalTargets(totalScoreSumAll);
       setTotalSessions(sessions.length);
-      setBestScore(highestScore > 0 ? `${highestScore}/100` : '--/100');
+      setBestScore(highest100TargetScore > 0 ? `${highest100TargetScore}/100` : '--/100');
+      setBestScoreNumeric(highest100TargetScore); 
+      setBestScoreEventName(bestScoreDetails.eventName);
+      setBestScoreLocation(bestScoreDetails.location);
+      setBestScoreDate(bestScoreDetails.date);
+      setBestScoreDiscipline(bestScoreDetails.discipline);
+
 
       setTotalRegisteredTargets(registeredTargetsHit);
       setTotalPracticeTargets(practiceTargetsHit);
 
-      // NEW: Calculate and set discipline-specific KPIs
       const calculateAvg = (hits, possible) => possible > 0 ? ((hits / possible) * 100).toFixed(1) : '--';
 
       setSinglesRegAvg(`${calculateAvg(disciplineStats.Singles.regHits, disciplineStats.Singles.regPossible)}%`);
-      setSinglesRegTargets(disciplineStats.Singles.regHits);
+      setSinglesRegTargets(disciplineStats.Singles.regPossible);
       setHandicapsRegAvg(`${calculateAvg(disciplineStats.Handicaps.regHits, disciplineStats.Handicaps.regPossible)}%`);
-      setHandicapsRegTargets(disciplineStats.Handicaps.regHits);
+      setHandicapsRegTargets(disciplineStats.Handicaps.regPossible);
       setDoublesRegAvg(`${calculateAvg(disciplineStats.Doubles.regHits, disciplineStats.Doubles.regPossible)}%`);
-      setDoublesRegTargets(disciplineStats.Doubles.regHits);
+      setDoublesRegTargets(disciplineStats.Doubles.regPossible);
 
       setSinglesPracAvg(`${calculateAvg(disciplineStats.Singles.pracHits, disciplineStats.Singles.pracPossible)}%`);
-      setSinglesPracTargets(disciplineStats.Singles.pracHits);
+      setSinglesPracTargets(disciplineStats.Singles.pracPossible);
       setHandicapsPracAvg(`${calculateAvg(disciplineStats.Handicaps.pracHits, disciplineStats.Handicaps.pracPossible)}%`);
-      setHandicapsPracTargets(disciplineStats.Handicaps.pracHits);
+      setHandicapsPracTargets(disciplineStats.Handicaps.pracPossible);
       setDoublesPracAvg(`${calculateAvg(disciplineStats.Doubles.pracHits, disciplineStats.Doubles.pracPossible)}%`);
-      setDoublesPracTargets(disciplineStats.Doubles.pracHits);
+      setDoublesPracTargets(disciplineStats.Doubles.pracPossible);
+
+      setRegisteredChartData({ labels: registeredDates, data: registeredScoresOverTime });
+      setPracticeChartData({ labels: practiceDates, data: practiceScoresOverTime });
 
     } else {
       setOverallAverage('--%');
       setTotalTargets('--');
       setTotalSessions('--');
       setBestScore('--/100');
+      setBestScoreNumeric(0);
+      setBestScoreEventName('--');
+      setBestScoreLocation('--');
+      setBestScoreDate('--');
+      setBestScoreDiscipline('--'); 
       
       setTotalRegisteredTargets('--');
       setTotalPracticeTargets('--');
 
-      // NEW: Reset discipline-specific KPIs
       setSinglesRegAvg('--%'); setSinglesRegTargets('--');
       setHandicapsRegAvg('--%'); setHandicapsRegTargets('--');
       setDoublesRegAvg('--%'); setDoublesRegTargets('--');
       setSinglesPracAvg('--%'); setSinglesPracTargets('--');
       setHandicapsPracAvg('--%'); setHandicapsPracTargets('--');
       setDoublesPracAvg('--%'); setDoublesPracTargets('--');
+
+      setRegisteredChartData({ labels: [], data: [] });
+      setPracticeChartData({ labels: [], data: [] });
     }
   }, [sessions]);
 
@@ -210,6 +279,21 @@ function Dashboard() {
           <Paper sx={{ p: 2, textAlign: 'center' }}>
             <Typography variant="h6">Best Score</Typography>
             <Typography variant="h3">{bestScore}</Typography>
+            {bestScoreNumeric > 0 && (
+              <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                Discipline: {bestScoreDiscipline}
+              </Typography>
+            )}
+            {bestScoreNumeric > 0 && (
+              <Typography variant="caption" display="block">
+                Event: {bestScoreEventName}
+              </Typography>
+            )}
+            {bestScoreNumeric > 0 && (
+              <Typography variant="caption" display="block">
+                Location: {bestScoreLocation} on {bestScoreDate}
+              </Typography>
+            )}
           </Paper>
         </Grid>
       </Grid>
@@ -289,13 +373,14 @@ function Dashboard() {
         </Grid>
       </Grid>
 
-      {/* Chart Section - Now separated for Registered and Practice (Placeholders) */}
+      {/* Chart Section - Now with actual charts */}
       <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
         Performance Over Time
       </Typography>
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2 }}>
+            {/* NO PerformanceChart component used directly here for now */}
             <Typography variant="h6" gutterBottom>
               Registered Targets: Score Over Time (Chart Placeholder)
             </Typography>
@@ -306,6 +391,7 @@ function Dashboard() {
         </Grid>
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2 }}>
+            {/* NO PerformanceChart component used directly here for now */}
             <Typography variant="h6" gutterBottom>
               Practice Targets: Score Over Time (Chart Placeholder)
             </Typography>
