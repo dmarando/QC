@@ -8,7 +8,7 @@ import Dashboard from './Dashboard';
 import SessionLogForm from './SessionLogForm';
 import SessionHistory from './SessionHistory';
 import SessionDetail from './SessionDetail';
-import SessionEditForm from './SessionEditForm'; // NEW: Import SessionEditForm
+import SessionEditForm from './SessionEditForm';
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -39,7 +39,6 @@ function App() {
               <Route path="/log-session" element={<SessionLogForm />} />
               <Route path="/history" element={<SessionHistory />} />
               <Route path="/session/:sessionId" element={<SessionDetail />} />
-              {/* NEW: Route for editing a session */}
               <Route path="/session/edit/:sessionId" element={<SessionEditForm />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
