@@ -30,13 +30,45 @@ const disciplines = ['Singles', 'Handicaps', 'Doubles'];
 
 const getMaxScore = (discipline, isBig50) => {
   if (isBig50) {
-    return 50; // Big 50 event, so 50 targets per discipline
+    if (discipline === 'Doubles') {
+      return 50;
+    }
+    return 25;
   }
+  
   if (discipline === 'Doubles') {
     return 50;
   }
+
   return 25;
 };
+
+const getRequiredRounds = (discipline, isChampionship, isBig50) => {
+  if (isBig50) {
+    switch (discipline) {
+      case 'Singles':
+        return 2;
+      case 'Handicaps':
+        return 2;
+      case 'Doubles':
+        return 1;
+      default:
+        return 1;
+    }
+  }
+  
+  switch (discipline) {
+    case 'Singles':
+      return isChampionship ? 8 : 4;
+    case 'Handicaps':
+      return 4;
+    case 'Doubles':
+      return 2;
+    default:
+      return 1;
+  }
+};
+
 
 const initialSessionData = {
   date: new Date().toISOString().split('T')[0],
@@ -51,11 +83,7 @@ const initialSessionData = {
   registeredEvent: false,
   isChampionshipEvent: false,
   isBig50Event: false,
-  scores: {
-    Singles: [],
-    Handicaps: [],
-    Doubles: [],
-  },
+  scores: {},
   notes: '',
   fileAttachment: null,
   fileAttachmentURL: '',
@@ -168,27 +196,24 @@ function SessionLogForm() {
       return { ...prevData, scores: newScores };
     });
   };
-
+  
   const addDisciplineFromSelect = (disciplineToAdd) => {
     if (disciplineToAdd) {
       setSessionData((prevData) => {
+        if (prevData.scores[disciplineToAdd]) {
+          return prevData;
+        }
+
         const newScores = { ...prevData.scores };
-        let numRounds = 1;
-        if (prevData.registeredEvent) {
-          if (prevData.isBig50Event) {
-            numRounds = 1;
-          } else if (disciplineToAdd === 'Singles') {
-            numRounds = prevData.isChampionshipEvent ? 8 : 4;
-          } else if (disciplineToAdd === 'Handicaps') {
-            numRounds = 4;
-          } else if (disciplineToAdd === 'Doubles') {
-            numRounds = 2;
-          }
-        }
         
-        if (!newScores[disciplineToAdd] || newScores[disciplineToAdd].length === 0) {
-          newScores[disciplineToAdd] = Array(numRounds).fill(null).map(() => ({ value: null, didNotShoot: false }));
-        }
+        const numRounds = getRequiredRounds(
+          disciplineToAdd, 
+          prevData.isChampionshipEvent, 
+          prevData.isBig50Event
+        );
+        
+        newScores[disciplineToAdd] = Array(numRounds).fill(null).map(() => ({ value: null, didNotShoot: false }));
+        
         return { ...prevData, scores: newScores };
       });
     }
@@ -201,6 +226,40 @@ function SessionLogForm() {
       return { ...prevData, scores: newScores };
     });
   };
+
+  // =================================================================
+  // START: NEW FUNCTIONS FOR PRACTICE MODE
+  // =================================================================
+  const addPracticeRound = (discipline) => {
+    setSessionData(prevData => {
+      const newScores = { ...prevData.scores };
+      if (newScores[discipline]) {
+        newScores[discipline].push({ value: null, didNotShoot: false });
+      } else {
+        // If discipline doesn't exist, create it with one round
+        newScores[discipline] = [{ value: null, didNotShoot: false }];
+      }
+      return { ...prevData, scores: newScores };
+    });
+  };
+
+  const removePracticeRound = (discipline, roundIndex) => {
+    setSessionData(prevData => {
+      const newScores = { ...prevData.scores };
+      if (newScores[discipline] && newScores[discipline][roundIndex]) {
+        newScores[discipline].splice(roundIndex, 1);
+        // If that was the last round, remove the discipline itself
+        if (newScores[discipline].length === 0) {
+          delete newScores[discipline];
+        }
+      }
+      return { ...prevData, scores: newScores };
+    });
+  };
+  // =================================================================
+  // END: NEW FUNCTIONS FOR PRACTICE MODE
+  // =================================================================
+
 
   useEffect(() => {
     if (sessionData.registeredEvent) {
@@ -221,27 +280,41 @@ function SessionLogForm() {
     }
   }, [sessionData.registeredEvent]);
 
+
   useEffect(() => {
-    if (sessionData.registeredEvent && Object.keys(sessionData.scores).length === 0) {
-        setSessionData(prevData => {
-            const newScores = { ...prevData.scores };
-            disciplines.forEach(discipline => {
-                let numRounds = 0;
-                if (prevData.isBig50Event) {
-                    numRounds = 1;
-                } else if (discipline === 'Singles') {
-                    numRounds = prevData.isChampionshipEvent ? 8 : 4;
-                } else if (discipline === 'Handicaps') {
-                    numRounds = 4;
-                } else if (discipline === 'Doubles') {
-                    numRounds = 2;
-                }
-                newScores[discipline] = Array(numRounds).fill(null).map(() => ({ value: null, didNotShoot: false }));
+    if (!sessionData.registeredEvent) return;
+
+    setSessionData(prevData => {
+      const newScores = { ...prevData.scores };
+      let hasChanged = false;
+
+      for (const discipline in newScores) {
+        if (Object.prototype.hasOwnProperty.call(newScores, discipline)) {
+          const currentRounds = newScores[discipline];
+          
+          const requiredRounds = getRequiredRounds(
+            discipline, 
+            prevData.isChampionshipEvent, 
+            prevData.isBig50Event
+          );
+
+          if (currentRounds.length !== requiredRounds) {
+            hasChanged = true;
+            const updatedRounds = Array(requiredRounds).fill(null).map((_, i) => {
+              return currentRounds[i] || { value: null, didNotShoot: false };
             });
-            return { ...prevData, scores: newScores };
-        });
-    }
-  }, [sessionData.isChampionshipEvent, sessionData.isBig50Event, sessionData.registeredEvent, sessionData.scores]);
+            newScores[discipline] = updatedRounds;
+          }
+        }
+      }
+
+      if (hasChanged) {
+        return { ...prevData, scores: newScores };
+      }
+
+      return prevData;
+    });
+  }, [sessionData.isChampionshipEvent, sessionData.isBig50Event, sessionData.registeredEvent]);
 
 
   useEffect(() => {
@@ -369,10 +442,12 @@ function SessionLogForm() {
         userId: auth.currentUser.uid,
         timestamp: serverTimestamp(),
         scores: Object.entries(dataToSave.scores).reduce((acc, [discipline, rounds]) => {
-          acc[discipline] = rounds.map(r => ({
-            value: r.didNotShoot ? null : (r.value !== null ? r.value : null),
-            didNotShoot: r.didNotShoot
-          }));
+          if (rounds && rounds.length > 0) { 
+            acc[discipline] = rounds.map(r => ({
+              value: r.didNotShoot ? null : (r.value !== null ? r.value : null),
+              didNotShoot: r.didNotShoot
+            }));
+          }
           return acc;
         }, {}),
       };
@@ -472,7 +547,7 @@ function SessionLogForm() {
                         disabled={sessionData.isChampionshipEvent}
                       />
                     }
-                    label="Big 50 Event (50 Targets per Discipline)"
+                    label="Big 50 Event"
                   />
                 </Grid>
               </>
@@ -725,166 +800,152 @@ function SessionLogForm() {
               <Paper sx={{ p: 2, border: '1px solid lightgrey' }}>
                 <Typography variant="h6" gutterBottom>Score Entry</Typography>
                 {sessionData.registeredEvent ? (
-                    // Registered Event Mode
+                  // =================================================================
+                  // Registered Event Mode
+                  // =================================================================
                     <Box>
                         {/* Dropdown for Add Discipline */}
-                        {!masterDataLoading && !masterDataError && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                <TextField
-                                    select
-                                    fullWidth
-                                    label="Add Discipline"
-                                    value=""
-                                    onChange={(e) => addDisciplineFromSelect(e.target.value)}
-                                    sx={{ mr: 1, flexGrow: 1 }}
-                                >
-                                    <MenuItem value="" disabled>Select to add</MenuItem>
-                                    {disciplines.filter(d => !sessionData.scores[d] || sessionData.scores[d].length === 0).map(d => (
-                                        <MenuItem key={d} value={d}>{d}</MenuItem>
-                                    ))}
-                                </TextField>
-                                <Button
-                                    variant="outlined"
-                                    onClick={() => {
-                                        const nextDiscipline = disciplines.find(d => !sessionData.scores[d] || sessionData.scores[d].length === 0);
-                                        if (nextDiscipline) {
-                                            addDisciplineFromSelect(nextDiscipline);
-                                        }
-                                    }}
-                                    disabled={disciplines.every(d => sessionData.scores[d] && sessionData.scores[d].length > 0)}
-                                >
-                                    Quick Add
-                                </Button>
-                            </Box>
-                        )}
-                        <Grid container spacing={2}>
-                            {disciplines.filter(d => sessionData.scores[d] && sessionData.scores[d].length > 0).map((discipline) => (
-                                <Grid item xs={12} key={discipline}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                        <Typography variant="subtitle1">{discipline}</Typography>
-                                        <IconButton edge="end" aria-label="remove discipline" onClick={() => removeDiscipline(discipline)} size="small" sx={{ ml: 1 }}>
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                        <FormControlLabel
-                                            control={
-                                                <Checkbox
-                                                    checked={sessionData.scores[discipline]?.[0]?.didNotShoot ?? false}
-                                                    onChange={(e) => handleDisciplineDidNotShootChange(discipline, e.target.checked)}
-                                                />
-                                            }
-                                            label="Did not shoot"
-                                            sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.75rem' }, ml: 1 }}
-                                        />
-                                    </Box>
-                                    <Grid container spacing={1} alignItems="center">
-                                        {(discipline === 'Doubles' ? [0, 1] : [0, 1, 2, 3]).map((roundIndex) => (
-                                            <Grid item xs={discipline === 'Doubles' ? 6 : 3} key={`${discipline}-${roundIndex}`}>
-                                                <TextField
-                                                    fullWidth
-                                                    label={`Round ${roundIndex + 1}`}
-                                                    type="number"
-                                                    inputProps={{ min: 0, max: getMaxScore(discipline) }}
-                                                    value={sessionData.scores[discipline]?.[roundIndex]?.value ?? ''}
-                                                    onChange={(e) => handleScoreChange(discipline, roundIndex, e)}
-                                                    disabled={sessionData.scores[discipline]?.[roundIndex]?.didNotShoot}
-                                                />
-                                            </Grid>
-                                        ))}
-                                    </Grid>
-                                </Grid>
-                            ))}
-                        </Grid>
-                    </Box>
-                ) : (
-                  // Practice Mode (existing logic)
-                  <Box>
-                    {masterDataLoading ? (
-                        <Box sx={{ textAlign: 'center', mt: 2 }}>
-                            <CircularProgress size={20} />
-                            <Typography variant="body2" sx={{ ml: 1 }}>Loading practice options...</Typography>
-                        </Box>
-                    ) : masterDataError ? (
-                        <Alert severity="error">{masterDataError}</Alert>
-                    ) : (
-                        disciplines.every(d => !sessionData.scores[d] || sessionData.scores[d].length === 0) ? (
-                            <Box sx={{ textAlign: 'center', mt: 2, mb: 2 }}>
-                                <Typography variant="body1" color="text.secondary">No disciplines added. Use the "Add Discipline" dropdown below.</Typography>
-                            </Box>
-                        ) : (
-                            disciplines.filter(d => sessionData.scores[d] && sessionData.scores[d].length > 0).map((discipline) => (
-                            <Box key={discipline} sx={{ mb: 2 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                    <Typography variant="subtitle1">{discipline} Scores</Typography>
-                                    <IconButton edge="end" aria-label="remove discipline" onClick={() => removeDiscipline(discipline)} size="small" sx={{ ml: 1 }}>
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                </Box>
-                                <Grid container spacing={1} alignItems="center">
-                                {sessionData.scores[discipline] && sessionData.scores[discipline].map((score, roundIndex) => (
-                                    <Grid item xs={discipline === 'Doubles' ? 6 : 3} key={`${discipline}-practice-${roundIndex}`}>
-                                    <TextField
-                                        fullWidth
-                                        label={`Round ${roundIndex + 1}`}
-                                        type="number"
-                                        inputProps={{ min: 0, max: getMaxScore(discipline) }}
-                                        value={score.value ?? ''}
-                                        onChange={(e) => handleScoreChange(discipline, roundIndex, e)}
-                                    />
-                                    <IconButton aria-label="remove round" onClick={() => removePracticeRound(discipline, roundIndex)} size="small">
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                    </Grid>
-                                ))}
-                                <Grid item xs={12} sx={{ mt: 1 }}>
-                                    <Button
-                                    variant="outlined"
-                                    onClick={() => addPracticeRound(discipline)}
-                                    startIcon={<AddIcon />}
-                                    >
-                                    Add Round
-                                    </Button>
-                                </Grid>
-                                </Grid>
-                            </Box>
-                            ))
-                        )
-                    )}
-                    {/* Dropdown for Add Discipline */}
-                    {!masterDataLoading && !masterDataError && (
-                        <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                             <TextField
                                 select
+                                fullWidth
                                 label="Add Discipline"
                                 value=""
                                 onChange={(e) => addDisciplineFromSelect(e.target.value)}
-                                sx={{ minWidth: 150, mr: 1 }}
+                                sx={{ mr: 1, flexGrow: 1 }}
+                                disabled={Object.keys(sessionData.scores).length >= disciplines.length}
                             >
                                 <MenuItem value="" disabled>Select to add</MenuItem>
-                                {disciplines.filter(d => !sessionData.scores[d] || sessionData.scores[d].length === 0).map(d => (
+                                {disciplines
+                                  .filter(d => !sessionData.scores[d])
+                                  .map(d => (
                                     <MenuItem key={d} value={d}>{d}</MenuItem>
-                                ))}
+                                  ))}
                             </TextField>
                         </Box>
+                        
+                        <Grid container spacing={2}>
+                          {Object.keys(sessionData.scores).map((discipline) => (
+                              <Grid item xs={12} key={discipline}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                      <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>{discipline}</Typography>
+                                      <IconButton edge="end" aria-label="remove discipline" onClick={() => removeDiscipline(discipline)} size="small" sx={{ ml: 1 }}>
+                                          <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                      <FormControlLabel
+                                          control={
+                                              <Checkbox
+                                                  checked={sessionData.scores[discipline]?.[0]?.didNotShoot ?? false}
+                                                  onChange={(e) => handleDisciplineDidNotShootChange(discipline, e.target.checked)}
+                                              />
+                                          }
+                                          label="Did not shoot"
+                                          sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.75rem' }, ml: 'auto' }}
+                                      />
+                                  </Box>
+                                  <Grid container spacing={1} alignItems="center">
+                                      {sessionData.scores[discipline].map((round, roundIndex) => (
+                                          <Grid item xs={6} sm={3} key={`${discipline}-${roundIndex}`}>
+                                              <TextField
+                                                  fullWidth
+                                                  label={`Round ${roundIndex + 1}`}
+                                                  type="number"
+                                                  inputProps={{ min: 0, max: getMaxScore(discipline, sessionData.isBig50Event) }}
+                                                  value={round.value ?? ''}
+                                                  onChange={(e) => handleScoreChange(discipline, roundIndex, e)}
+                                                  disabled={round.didNotShoot}
+                                              />
+                                          </Grid>
+                                      ))}
+                                  </Grid>
+                              </Grid>
+                          ))}
+                        </Grid>
+                    </Box>
+                ) : (
+                  // =================================================================
+                  // START: RESTORED PRACTICE MODE
+                  // =================================================================
+                  <Box>
+                    {/* Message for when no disciplines are added yet */}
+                    {Object.keys(sessionData.scores).length === 0 ? (
+                        <Box sx={{ textAlign: 'center', mt: 2, mb: 2 }}>
+                            <Typography variant="body1" color="text.secondary">No disciplines added. Use the "Add Discipline" dropdown below.</Typography>
+                        </Box>
+                    ) : (
+                      // Display added disciplines and their rounds
+                      Object.keys(sessionData.scores).map((discipline) => (
+                        <Box key={discipline} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <Typography variant="subtitle1">{discipline} Scores</Typography>
+                                <IconButton edge="end" aria-label="remove discipline" onClick={() => removeDiscipline(discipline)} size="small" sx={{ ml: 1 }}>
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
+                            <Grid container spacing={1} alignItems="center">
+                              {sessionData.scores[discipline].map((score, roundIndex) => (
+                                <Grid item xs={10} sm={5} md={3} key={`${discipline}-practice-${roundIndex}`} sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <TextField
+                                      fullWidth
+                                      label={`Round ${roundIndex + 1}`}
+                                      type="number"
+                                      inputProps={{ min: 0, max: getMaxScore(discipline, false) }} // isBig50 is always false for practice
+                                      value={score.value ?? ''}
+                                      onChange={(e) => handleScoreChange(discipline, roundIndex, e)}
+                                  />
+                                  <IconButton aria-label="remove round" onClick={() => removePracticeRound(discipline, roundIndex)} size="small">
+                                      <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Grid>
+                              ))}
+                              <Grid item xs={12} sx={{ mt: 1 }}>
+                                  <Button
+                                    variant="outlined"
+                                    onClick={() => addPracticeRound(discipline)}
+                                    startIcon={<AddIcon />}
+                                  >
+                                    Add Round
+                                  </Button>
+                              </Grid>
+                            </Grid>
+                        </Box>
+                      ))
                     )}
+                    
+                    {/* Dropdown to add a new discipline */}
+                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #ddd' }}>
+                      <Typography variant="body2" sx={{mb: 1}}>Add a discipline to your practice session:</Typography>
+                      <TextField
+                          select
+                          label="Add Discipline"
+                          value=""
+                          onChange={(e) => addPracticeRound(e.target.value)}
+                          sx={{ minWidth: 200 }}
+                          size="small"
+                          disabled={Object.keys(sessionData.scores).length >= disciplines.length}
+                      >
+                          <MenuItem value="" disabled>Select to add</MenuItem>
+                          {disciplines.filter(d => !sessionData.scores[d]).map(d => (
+                              <MenuItem key={d} value={d}>{d}</MenuItem>
+                          ))}
+                      </TextField>
+                    </Box>
                   </Box>
+                  // =================================================================
+                  // END: RESTORED PRACTICE MODE
+                  // =================================================================
                 )}
               </Paper>
             </Grid>
 
             {/* Submit Button */}
             <Grid item xs={12}>
-              <Button type="submit" variant="contained" color="primary">
+              <Button type="submit" variant="contained" color="primary" disabled={weatherLoading || uploadProgress > 0}>
                 Log Session
               </Button>
             </Grid>
           </Grid>
         </form>
-        {masterDataLoading && (
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <CircularProgress size={20} />
-            <Typography variant="body2" sx={{ ml: 1 }}>Loading equipment options...</Typography>
-          </Box>
-        )}
         {masterDataError && (
           <Alert severity="error" sx={{ mt: 2 }}>
             {masterDataError}
